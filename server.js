@@ -60,30 +60,31 @@ app.get('/getproductbyid/:id', (req, res) => {
         });
 });
 
-// app.post('/register', (req, res) => {
-//     userModel.create(req.body)
-//     .then(users => res.json(users))
-//     .catch(err => res.json(err))
-// });
-    
-app.post('/register', (req, res) => {
-    
-    const newuser = new User({
-        name: req.body.name,
-        email: req.body.email,
-        password: req.body.password,
-    })
+ 
 
-    newuser.save(err=>{
-        if(!err)
-        {
-            res.send('User Registration success')
-        }
-        else{
-            res.send('Something went wrong')
-        }
-    })
+// app.post('/register', (req, res) => {
+//     userModel.create(req.body)  
+//         .then(user => res.json({ message: 'User Registration Success', user }))
+//         .catch(err => res.status(500).json({ message: 'Something went wrong', error: err }));
+// });
+
+
+app.post('/register', (req, res) => {
+    userModel.findOne({ email: req.body.email })
+        .then(existingUser => {
+            if (existingUser) {
+                return res.status(400).json({ message: 'Email already registered' });
+            }
+            
+            
+            userModel.create(req.body)
+                .then(user => res.json({ message: 'User Registration Success', user }))
+                .catch(err => res.status(500).json({ message: 'Something went wrong', error: err }));
+        })
+        .catch(err => res.status(500).json({ message: 'Database error', error: err }));
 });
+
+
 
 
 
