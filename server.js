@@ -7,6 +7,7 @@ app.use(cors())
 app.use(express.json())
 
 const productsModel = require('./models/productsModel');
+const userModel = require('./models/userModel');
 
 app.get('/', (req, res) => {
     res.send('this is from backend');
@@ -46,9 +47,9 @@ app.get('/getproductbyid/:id', (req, res) => {
     const id = req.params.id;
     
     productsModel.findById(id)  // Pass `id` directly to findById
-        .then((user) => {
-            if (user) {
-                res.json(user);  // Send found user document
+        .then((product) => {
+            if (product) {
+                res.json(product);  // Send found user document
             } else {
                 res.status(404).json({ message: "Product not found" });
             }
@@ -58,7 +59,31 @@ app.get('/getproductbyid/:id', (req, res) => {
             res.status(500).json({ message: "Something went wrong", error: err });
         });
 });
+
+// app.post('/register', (req, res) => {
+//     userModel.create(req.body)
+//     .then(users => res.json(users))
+//     .catch(err => res.json(err))
+// });
     
+app.post('/register', (req, res) => {
+    
+    const newuser = new User({
+        name: req.body.name,
+        email: req.body.email,
+        password: req.body.password,
+    })
+
+    newuser.save(err=>{
+        if(!err)
+        {
+            res.send('User Registration success')
+        }
+        else{
+            res.send('Something went wrong')
+        }
+    })
+});
 
 
 
