@@ -41,6 +41,71 @@ app.get("/getproducts", (req, res) => {
     );
 });
 
+
+//Products API
+app.post("/addproduct", async (req, res) => {
+  try {
+    const { product } = req.body;
+
+    // Create a new product instance from productsModel
+    const newProduct = new productsModel({
+      name: product.name,
+      price: product.price,
+      description: product.description,
+      countInStock: product.countInStock,
+      image: product.image,
+      category: product.category,
+    });
+
+    // Save the product and await the Promise
+    await newProduct.save();
+    res.send('Product added successfully');
+  } catch (err) {
+    res.status(400).json({ message: 'Something went wrong', error: err.message });
+  }
+});
+
+
+// update
+app.put("/editproduct/:id", async (req, res) => {
+  try {
+    const { product } = req.body;  
+
+    
+    const updatedProduct = await productsModel.findByIdAndUpdate(
+      req.params.id,  
+      {
+        name: product.name,
+        price: product.price,
+        description: product.description,
+        countInStock: product.countInStock,
+        image: product.image,
+        category: product.category,
+      },
+      { new: true } 
+    );
+
+    if (!updatedProduct) {
+      return res.status(404).json({ message: 'Product not found' });
+    }
+
+    res.json({ message: 'Product updated successfully', product: updatedProduct });
+  } catch (err) {
+    res.status(400).json({ message: 'Something went wrong', error: err.message });
+  }
+});
+
+
+
+
+app.delete('/deleteproduct/:id', (req, res) => {
+  const id = req.params.id;
+  productsModel.findByIdAndDelete(id)
+      .then((doc) => res.json({ message: 'Product deleted successfully', doc }))
+      .catch((err) => res.status(400).json({ message: 'Error deleting product', error: err }));
+});
+
+
 // app.post('/getproductbyid', (req, res) => {
 //     const productId = req.body.productid;
 //     productsModel.find({ _id: productId }, (err, docs) => {
@@ -177,19 +242,52 @@ app.post("/login", (req, res) => {
         }
     });
 
+    app.get('/getordersbyuserid/:userid', async (req, res) => {
+      const { userid } = req.params;
+  
+      try {
+          const orders = await orderModel.find({ userid });
+          res.status(200).json(orders);
+      } catch (err) {
+          console.error('Error fetching orders:', err);
+          res.status(500).json({ message: 'Something went wrong' });
+      }
+  });
 
-    app.get('/getordersbyuserid', (req, res) =>{
-      const userid = req.body.userid
+  
+  
+  app.get("/getorderbyid/:orderid", async (req, res) => {
+    const { orderid } = req.params;  // Accessing orderid from the URL parameter
 
-      orderModel.find({userid :userid}, (err, docs)=>{
-        if(err){
-          return res.status(400).json({ message: 'Something went wrong'})
+    try {
+        const order = await orderModel.findById(orderid);
+
+        if (!order) {
+            return res.status(404).json({ message: 'Order not found' });
         }
-        else{
-          res.send(docs);
-        }
-      })
-    })
+
+        res.status(200).json(order);
+    } catch (err) {
+        console.error('Error fetching order:', err);
+        res.status(500).json({ message: 'Something went wrong' });
+    }
+});
+
+
+  
+
+    // app.get('/getordersbyuserid', (req, res) =>{
+    //   const userid = req.body.userid
+
+    //   orderModel.find({userid :userid}, (err, docs)=>{
+    //     if(err){
+    //       return res.status(400).json({ message: 'Something went wrong'})
+    //     }
+    //     else{
+    //       res.send(docs);
+    //     }
+    //   })
+    // })
 
 
 
