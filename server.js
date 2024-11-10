@@ -66,14 +66,13 @@ app.post("/addproduct", async (req, res) => {
 });
 
 
-// update
-app.put("/editproduct/:id", async (req, res) => {
+app.put("/updateproduct/:id", async (req, res) => {
   try {
-    const { product } = req.body;  
+    const { id } = req.params;
+    const { product } = req.body;
 
-    
     const updatedProduct = await productsModel.findByIdAndUpdate(
-      req.params.id,  
+      id,
       {
         name: product.name,
         price: product.price,
@@ -82,18 +81,18 @@ app.put("/editproduct/:id", async (req, res) => {
         image: product.image,
         category: product.category,
       },
-      { new: true } 
+      { new: true }
     );
 
     if (!updatedProduct) {
-      return res.status(404).json({ message: 'Product not found' });
+      return res.status(404).json({ message: "Product not found" });
     }
-
-    res.json({ message: 'Product updated successfully', product: updatedProduct });
+    res.send("Product updated successfully");
   } catch (err) {
-    res.status(400).json({ message: 'Something went wrong', error: err.message });
+    res.status(400).json({ message: "Something went wrong", error: err.message });
   }
 });
+
 
 
 
@@ -106,25 +105,14 @@ app.delete('/deleteproduct/:id', (req, res) => {
 });
 
 
-// app.post('/getproductbyid', (req, res) => {
-//     const productId = req.body.productid;
-//     productsModel.find({ _id: productId }, (err, docs) => {
-//         if (!err) {
-//             res.send(docs[0]);
-//         } else {
-//             console.error("Error finding product:", err); // Log the error
-//             return res.status(400).json({ message: "Something went wrong", error: err });
-//         }
-//     });
-// });
 app.get("/getproductbyid/:id", (req, res) => {
   const id = req.params.id;
 
   productsModel
-    .findById(id) // Pass `id` directly to findById
+    .findById(id) // Uses `findById` with `id` parameter
     .then((product) => {
       if (product) {
-        res.json(product); // Send found user document
+        res.json(product); // Sends the found product document
       } else {
         res.status(404).json({ message: "Product not found" });
       }
@@ -134,6 +122,44 @@ app.get("/getproductbyid/:id", (req, res) => {
       res.status(500).json({ message: "Something went wrong", error: err });
     });
 });
+
+app.post('/addproductreview', async (req, res) => {
+  const { review, productid, currentUser } = req.body;
+
+  try {
+    
+    const product = await productsModel.findById(productid);
+    if (!product) {
+      return res.status(404).json({ message: 'Product not found' });
+    }
+
+    const reviewModel = {
+      name: currentUser.name,
+      userid: currentUser._id,
+      rating: review.rating,
+      comment: review.comment,
+    };
+
+       
+    product.reviews.push(reviewModel);
+
+    const totalRating = product.reviews.reduce((acc, x) => acc + x.rating, 0);
+    const averageRating = totalRating / product.reviews.length;
+
+    product.rating = averageRating;
+
+   
+    await product.save();
+
+    
+    res.send('Review Submitted Successfully');
+  } catch (err) {
+ 
+    res.status(400).json({ message: 'Something went wrong' });
+  }
+});
+
+
 
 // app.post('/register', (req, res) => {
 //     userModel.create(req.body)
@@ -187,60 +213,103 @@ app.post("/login", (req, res) => {
         .catch((err) => res.status(500).json({ message: "Database error", error: err }));
     });
 
+    // app.get('/getallusers', (req,res) =>{
+    //   userModel.find({}, (err, docs) =>{
+    //     if(err){
+    //       return res.send(400).json({message: 'something went wrong'})
+    //     }else{
+    //       res.send(docs)
+    //     }
+    //   })
+    // })
+
+    app.get('/getallusers', async (req, res) => {
+      try {
+        const docs = await userModel.find({});
+        res.json(docs);
+      } catch (err) {
+        res.status(400).json({ message: 'Something went wrong' });
+      }
+    });
+
+    app.post('/deleteuser', async (req, res) => {
+      try {
+        const result = await userModel.findByIdAndDelete(req.body.userid);
+        if (!result) {
+          return res.status(404).json({ message: 'User not found' });
+        }
+        res.send('User deleted successfully');
+      } catch (err) {
+        res.status(400).json({ message: 'Something went wrong' });
+      }
+    });
+    
+    
+
     //orders
   
     app.post('/placeorder', async (req, res) => {
-        const { token, totalPrice, currentUser, cartItems } = req.body;
-    
-        try {
-            // Create a customer in Stripe
-            const customer = await stripe.customers.create({
-                email: token.email,
-                source: token.id,
-            });
-    
-            // Create a charge
-            const payment = await stripe.charges.create({
-                amount: Math.round(totalPrice * 100), // Amount in cents
-                currency: 'zar',
-                customer: customer.id,
-                receipt_email: token.email,
-            }, {
-                idempotencyKey: uuidv4()
-            });
-    
-            // If payment was successful, proceed with order creation
-            if (payment) {
-                // Create order document
-                const order = new orderModel({
-                    userid: currentUser.user._id,
-                    name: currentUser.user.name,
-                    email: currentUser.user.email,
-                    orderItems: cartItems,
-                    shippingAddress: {
-                        address: token.card.address_line1,
-                        city: token.card.address_city,
-                        country: token.card.address_country,
-                        postalCode: token.card.address_zip,
-                    },
-                    orderAmount: totalPrice,
-                    transactionId: payment.id, // `payment.source.id` may be undefined; use `payment.id`
-                    status: 'order placed',
-                });
-    
-                // Save order using async/await
-                await order.save();
-    
-                // Send success response
-                res.status(200).json({ message: 'Order Placed Successfully' });
-            } else {
-                res.status(400).json({ message: 'Payment Failed' });
-            }
-        } catch (err) {
-            console.error("Stripe Payment Error:", err);
-            res.status(500).json({ message: 'Payment processing error', error: err.message });
-        }
-    });
+      const { token, totalPrice, currentUser, cartItems } = req.body;
+  
+      try {
+          // Create a customer in Stripe
+          const customer = await stripe.customers.create({
+              email: token.email,
+              source: token.id,
+          });
+  
+          // Create a charge
+          const payment = await stripe.charges.create({
+              amount: Math.round(totalPrice * 100), // Amount in cents
+              currency: 'zar',
+              customer: customer.id,
+              receipt_email: token.email,
+          }, {
+              idempotencyKey: uuidv4()
+          });
+  
+          // If payment was successful, proceed with order creation
+          if (payment) {
+              // Update countInStock for each ordered item
+              for (const item of cartItems) {
+                  const product = await productsModel.findById(item._id);
+                  
+                  if (product.countInStock >= item.quantity) {
+                      product.countInStock -= item.quantity;  // Decrement stock
+                      await product.save(); // Save updated stock
+                  } else {
+                      return res.status(400).json({ message: `Insufficient stock for ${product.name}` });
+                  }
+              }
+  
+              // Create the order in the database
+              const order = new orderModel({
+                  userid: currentUser.user._id,
+                  name: currentUser.user.name,
+                  email: currentUser.user.email,
+                  orderItems: cartItems,
+                  shippingAddress: {
+                      address: token.card.address_line1,
+                      city: token.card.address_city,
+                      country: token.card.address_country,
+                      postalCode: token.card.address_zip,
+                  },
+                  orderAmount: totalPrice,
+                  transactionId: payment.id,
+                  status: 'order placed',
+              });
+  
+              await order.save(); // Save order
+              res.status(200).json({ message: 'Order Placed Successfully' });
+          } else {
+              res.status(400).json({ message: 'Payment Failed' });
+          }
+      } catch (err) {
+          console.error("Stripe Payment Error:", err);
+          res.status(500).json({ message: 'Payment processing error', error: err.message });
+      }
+  });
+  
 
     app.get('/getordersbyuserid/:userid', async (req, res) => {
       const { userid } = req.params;
@@ -273,21 +342,57 @@ app.post("/login", (req, res) => {
     }
 });
 
+app.get("/getallorders", (req, res) => {
+  orderModel
+    .find({})
+    .then((docs) => res.send(docs))
+    .catch((err) =>
+      res.status(400).json({ message: "Something went wrong", error: err })
+    );
+});
 
-  
 
-    // app.get('/getordersbyuserid', (req, res) =>{
-    //   const userid = req.body.userid
+app.patch('/updateorderstatus/:id', async (req, res) => {
+  const { id } = req.params;
+  const { status } = req.body;
 
-    //   orderModel.find({userid :userid}, (err, docs)=>{
-    //     if(err){
-    //       return res.status(400).json({ message: 'Something went wrong'})
-    //     }
-    //     else{
-    //       res.send(docs);
-    //     }
-    //   })
-    // })
+  try {
+    const updatedOrder = await orderModel.findByIdAndUpdate(
+      id,
+      { status },
+      { new: true }
+    );
+
+    if (!updatedOrder) {
+      return res.status(404).send({ message: 'Order not found' });
+    }
+
+    res.send(updatedOrder);
+  } catch (error) {
+    res.status(500).send({ message: 'Failed to update order status', error });
+  }
+});
+
+
+// Route to cancel order by user
+app.put('/cancelorder/:id', async (req, res) => {
+  try {
+    const order = await orderModel.findById(req.params.id);
+    if (order) {
+      order.status = "Cancelled";
+      await order.save();
+      res.status(200).json({ message: "Order cancelled successfully" });
+    } else {
+      res.status(404).json({ message: "Order not found" });
+    }
+  } catch (error) {
+    res.status(500).json({ message: "Failed to cancel order" });
+  }
+});
+
+
+
+
 
 
 
